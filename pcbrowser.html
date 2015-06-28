@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>pc用</title>
+        <link rel="stylesheet" href="style.css" media="screen" title="no title" charset="utf-8">
+    </head>
+    <body>
+        <canvas style="border-style: solid; border-color:#5a70fa;" width="450px" height="400px" >お使いのブラウザはHTML5のCanvas要素に対応していません。</canvas>
+        <div id="button">
+            <input type="button" id="save" value="いめーじでーた" />
+            <input type="button" id="clear" value="消去" />
+            <input type="button" id="getImageData" value="ピクセルデータ取得" />
+        </div>
+    </body>
+</html>
+<script type="text/javascript" src="./lib/socket.io-client/socket.io.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7/jquery.min.js"></script>
+<script type="text/javascript" src="./geometry/star.js"></script>
+<script type="text/javascript" src="./geometry/circle.js"></script>
+<script type="text/javascript" src="./geometry/triangle.js"></script>
+<script type="text/javascript" src="./geometry/mountain.js"></script>
+<script type="text/javascript" src="./geometry/valley.js"></script>
+<script type="text/javascript">
+$(function() {
+
+    // jsonやりとり用
+    var socket = io.connect('http://192.168.33.11:8080');
+    socket.on('connect', function(msg) {
+        console.log('connected');
+    });
+
+    var offset = 5;
+    var startX;
+    var startY;
+    var flag = false;
+    var canvas = $('canvas').get(0);
+    if (canvas.getContext) {
+        var context = canvas.getContext('2d');
+    }
+
+    var img = new Image();
+    img.src = "sample_geometry.png";
+    img.addEventListener('load', function() {
+        context.drawImage(img, 0, 0, 450, 400);
+    }, false);
+
+    $('canvas').mousedown(function(e) {
+        flag = true;
+        startX = e.pageX - $(this).offset().left - offset;
+        startY = e.pageY - $(this).offset().top - offset;
+        return false; // for chrome
+    });
+
+    $('canvas').mousemove(function(e) {
+        if (flag) {
+            var endX = e.pageX - $('canvas').offset().left - offset;
+            var endY = e.pageY - $('canvas').offset().top - offset;
+            context.lineWidth = 30;
+            context.lineJoin = "round";
+            context.lineCap = "round";
+            context.strokeStyle = 'rgb(2, 121, 235)';
+            context.globalAlpha = 1;
+            context.beginPath();
+            context.moveTo(startX, startY);
+            context.lineTo(endX, endY);
+            context.stroke();
+            context.closePath();
+            startX = endX;
+            startY = endY;
+            context.globalCompositeOperation = "source-over";
+        }
+    });
+
+    $('canvas').on('mouseup', function() {
+        flag = false;
+    });
+
+    $('canvas').on('mouseleave', function() {
+        flag = false;
+    });
+
+    $('li').click(function() {
+        context.strokeStyle = $(this).css('background-color');
+    });
+
+    $('#clear').click(function(e) {
+        e.preventDefault();
+        context.clearRect(0, 0, $('canvas').width(), $('canvas').height());
+        img.src = "sample_geometry.png";
+        img.addEventListener('load', function() {
+            context.drawImage(img, 0, 0, 450, 400);
+        }, false);
+    });
+
+    $('#save').click(function() {
+        var width = 450 - 10;
+        var height = 400 - 10;
+
+        context.createImageData(width,height);
+        var imageData = context.getImageData(0, 0, width, height);
+        for (var i = 0; i < width * height * 4; i++) {
+            imageData.data[i] = 128;
+        }
+        context.putImageData(imageData, 0, 0);
+    });
+
+    $('#getImageData').click(function() {
+        var imageData = context.getImageData(0, 0, 450, 400);
+
+        var alphaData = [];
+
+        var star_point = 0;
+        var mountain_point = 0;
+        var valley_point = 0;
+        var circle_point = 0;
+        var triangle_point = 0;
+
+        var counter = 0;
+
+        // 評価ポイント
+        var overlap = 10;
+        var protrusion = -10;
+
+        for (var i = 0; i < imageData.data.length; i++) {
+            if ( (i+1) % 4 == 0) {
+                if (imageData.data[i] == 255) {
+                    alphaData.push(1);
+                    // 重なり
+                    if(star[counter] == 1){star_point += overlap}
+                    if(mountain[counter] == 1){mountain_point += overlap}
+                    if(valley[counter] == 1){valley_point += overlap}
+                    if(circle[counter] == 1){circle_point += overlap}
+                    if(triangle[counter] == 1){triangle_point += overlap}
+                    counter++;
+                } else {
+                    alphaData.push(0);
+                    // はみ出し
+                    if(star[counter] == 1){star_point += protrusion}
+                    if(mountain[counter] == 1){mountain_point += protrusion}
+                    if(valley[counter] == 1){valley_point += protrusion}
+                    if(circle[counter] == 1){circle_point += protrusion}
+                    if(triangle[counter] == 1){triangle_point += protrusion}
+                    counter++;
+                }
+            }
+        }
+        //console.log(alphaData);
+        //console.log(counter);
+        console.log("star: " + star_point);
+        console.log("mountain: " + mountain_point);
+        console.log("valley: " + valley_point);
+        console.log("circle: " + circle_point);
+        console.log("triangle: " + triangle_point);
+        var result = [star_point, mountain_point, valley_point, circle_point, triangle_point].sort(function(a,b){return b - a});
+        console.log(result);
+        console.log("--------------------------------");
+
+        var fig = ""
+        switch (result[0]) {
+            case star_point:
+                    console.log("star");
+                    fig = "star";
+                break;
+            case mountain_point:
+                    console.log("mountain");
+                    fig = "mountain";
+                break;
+            case valley_point:
+                    console.log("valley");
+                    fig = "valley";
+                break;
+            case circle_point:
+                    console.log("circle");
+                    fig = "circle";
+                break;
+            case triangle_point:
+                    console.log("triangle");
+                    fig = "triangle";
+                break;
+            default:
+                break;
+        }
+
+
+
+        //socket.emit("json", "var circle = [" + alphaData + "];");
+        socket.emit("json", fig);
+
+    });
+});
+</script>

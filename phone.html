@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=500px initial-scale=0.64" user-scalable=no/>
+        <title>Angelhack Drawing</title>
+        <link rel="stylesheet" href="style.css" media="screen" title="no title" charset="utf-8">
+    </head>
+    <body>
+        <div class="main">
+            <div class="toolbar">
+                <!-- <input id="delete_button" type="button" value="delete"/> -->
+            </div>
+            <div class="canvas"><canvas id="myCanvas"></canvas></div>
+        </div>
+    </body>
+</html>
+
+<script type="text/javascript" src="./lib/socket.io-client/socket.io.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7/jquery.min.js"></script>
+<script type="text/javascript" src="./geometry/star.js"></script>
+<script type="text/javascript" src="./geometry/circle.js"></script>
+<script type="text/javascript" src="./geometry/triangle.js"></script>
+<script type="text/javascript" src="./geometry/mountain.js"></script>
+<script type="text/javascript" src="./geometry/valley.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+<script type="text/javascript">
+window.addEventListener("load", function () {
+
+    // jsonやりとり用
+    var socket = io.connect('http://153.121.75.250:8080');
+    socket.on('connect', function(msg) {
+        console.log('connected');
+    });
+
+    var canvas = document.getElementById("myCanvas");
+    var c = $('canvas').get(0);
+    if (canvas.getContext) {
+        var c = canvas.getContext('2d');
+    }
+    var w = 450;
+    var h = 400;
+    var drawing = false;
+    var oldPos;
+
+    // お手本画像
+    var img = new Image();
+    img.src = "sample_geometry.png";
+    img.addEventListener('load', function() {
+        c.drawImage(img, 0, 0, 450, 400);
+    }, false);
+
+    // CanvasとContextを初期化する
+    canvas.width = w;
+    canvas.height = h;
+    //c.strokeStyle = 'rgb(128, 100, 162)';
+    c.strokeStyle = 'rgb(2, 121, 235)';
+    c.globalAlpha = 1;
+    c.lineWidth = 30;
+    c.lineJoin = "round";
+    c.lineCap = "round";
+    //c.globalCompositeOperation = "source-atop";
+
+    document.ontouchmove = function(event){
+    event.preventDefault();
+}
+
+    // タップ開始時に、絵を描く準備をする
+    canvas.addEventListener("touchstart", function (event) {
+        drawing = true;
+        oldPos = getPosT(event);
+    }, false);
+
+    // タップ終了時に、絵を描く後処理を行う
+    canvas.addEventListener("touchend", function () {
+        drawing = false;
+        socket.emit("json", "finish drawing");
+        var imageData = c.getImageData(0, 0, 450, 400);
+
+        var alphaData = [];
+
+        var star_point = 0;
+        var mountain_point = 0;
+        var valley_point = 0;
+        var circle_point = 0;
+        var triangle_point = 0;
+
+        var counter = 0;
+
+        // 評価ポイント
+        var overlap = 10;
+        var protrusion = -10;
+
+        for (var i = 0; i < imageData.data.length; i++) {
+            if ( (i+1) % 4 == 0) {
+                if (imageData.data[i] == 255) {
+                    alphaData.push(1);
+                    // 重なり
+                    if(star[counter] == 1){star_point += overlap}
+                    if(mountain[counter] == 1){mountain_point += overlap}
+                    if(valley[counter] == 1){valley_point += overlap}
+                    if(circle[counter] == 1){circle_point += overlap}
+                    if(triangle[counter] == 1){triangle_point += overlap}
+                    counter++;
+                } else {
+                    alphaData.push(0);
+                    // はみ出し
+                    if(star[counter] == 1){star_point += protrusion}
+                    if(mountain[counter] == 1){mountain_point += protrusion}
+                    if(valley[counter] == 1){valley_point += protrusion}
+                    if(circle[counter] == 1){circle_point += protrusion}
+                    if(triangle[counter] == 1){triangle_point += protrusion}
+                    counter++;
+                }
+            }
+        }
+        //console.log(alphaData);
+        //console.log(counter);
+        console.log("star: " + star_point);
+        console.log("mountain: " + mountain_point);
+        console.log("valley: " + valley_point);
+        console.log("circle: " + circle_point);
+        console.log("triangle: " + triangle_point);
+        var result = [star_point, mountain_point, valley_point, circle_point, triangle_point].sort(function(a,b){return b - a});
+        console.log(result);
+        console.log("--------------------------------");
+
+        var fig = ""
+        switch (result[0]) {
+            case star_point:
+                    console.log("star");
+                    fig = "star";
+                    $.get('http://172.20.10.2:5000/spell/5');
+                break;
+            case mountain_point:
+                    console.log("mountain");
+                    fig = "mountain";
+                    $.get('http://172.20.10.2:5000/spell/3');
+                break;
+            case valley_point:
+                    console.log("valley");
+                    fig = "valley";
+                    $.get('http://172.20.10.2:5000/spell/4');
+                break;
+            case circle_point:
+                    console.log("circle");
+                    fig = "circle";
+                    $.get('http://172.20.10.2:5000/spell/1');
+                break;
+            case triangle_point:
+                    console.log("triangle");
+                    fig = "triangle";
+                    $.get('http://172.20.10.2:5000/spell/2');
+                break;
+            default:
+                break;
+        }
+
+        //socket.emit("json", "var circle = [" + alphaData + "];");
+
+        //デモ用サーバーにはアップしない
+        //socket.emit("json", fig);
+        c.clearRect(0, 0, $('canvas').width(), $('canvas').height());
+
+        // お手本再描画
+        c.drawImage(img, 0, 0, 450, 400);
+    }, false);
+
+    // gestureイベント（２本指以上で触ると発生するやつ）の
+    // 終了時にも絵を描く後処理を行う
+    canvas.addEventListener("gestureend", function () {
+        console.log("mouseout");
+        drawing = false;
+    }, false);
+
+    // 前回に保存した位置から現在の位置迄線を引く
+    canvas.addEventListener("touchmove", function (event) {
+        var pos = getPosT(event);
+        if (drawing) {
+            c.beginPath();
+            c.moveTo(oldPos.x, oldPos.y);
+            c.lineTo(pos.x, pos.y);
+            c.stroke();
+            c.closePath();
+            oldPos = pos;
+        }
+    }, false);
+
+    // タップ位置
+    function scrollX(){return document.documentElement.scrollLeft || document.body.scrollLeft;}
+    function scrollY(){return document.documentElement.scrollTop || document.body.scrollTop;}
+    function getPosT (event) {
+        var mouseX = event.touches[0].clientX - $(canvas).position().left + scrollX();
+        var mouseY = event.touches[0].clientY - $(canvas).position().top + scrollY();
+        return {x:mouseX, y:mouseY};
+    }
+
+    // 削除ボタン
+    $("#delete_button").click(function () {
+        c.clearRect(0, 0, $('canvas').width(), $('canvas').height());
+    });
+
+}, false);
+</script>
